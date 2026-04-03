@@ -49,13 +49,16 @@ export interface LibImageQuantOptions {
   operationTimeout?: number;
 }
 
+interface PendingOperation {
+  resolve: (value: QuantizationResult) => void;
+  reject: (reason?: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export default class LibImageQuant {
   private worker: Worker | null = null;
   private isReady: boolean = false;
-  private pendingOperations = new Map<
-    number,
-    { resolve: (value: any) => void; reject: (reason?: any) => void }
-  >();
+  private pendingOperations = new Map<number, PendingOperation>();
   private operationCounter: number = 0;
   private workerUrl?: string;
   private wasmUrl?: string;
@@ -87,6 +90,14 @@ export default class LibImageQuant {
         }
         this.worker = new Worker(workerUrl, { type: "module" });
 
+        const initTimer = setTimeout(() => {
+          if (!this.isReady) {
+            // Suppress further worker errors after timeout
+            if (this.worker) this.worker.onerror = null;
+            reject(new Error("Worker initialization timeout"));
+          }
+        }, this.initTimeout);
+
         this.worker.onmessage = (e) => {
           const { type, id, success, result, error } = e.data;
 
@@ -99,6 +110,7 @@ export default class LibImageQuant {
               });
             }
             this.isReady = true;
+            clearTimeout(initTimer);
             resolve();
             return;
           }
@@ -106,6 +118,7 @@ export default class LibImageQuant {
           const operation = this.pendingOperations.get(id);
           if (operation) {
             this.pendingOperations.delete(id);
+            clearTimeout(operation.timer);
 
             if (success) {
               operation.resolve(result);
@@ -116,15 +129,10 @@ export default class LibImageQuant {
         };
 
         this.worker.onerror = (error) => {
+          error.preventDefault();
+          clearTimeout(initTimer);
           reject(new Error(`Worker error: ${error.message}`));
         };
-
-        // Set a timeout for initialization
-        setTimeout(() => {
-          if (!this.isReady) {
-            reject(new Error("Worker initialization timeout"));
-          }
-        }, this.initTimeout);
       } catch (error) {
         reject(error);
       }
@@ -134,27 +142,26 @@ export default class LibImageQuant {
   /**
    * Send a message to the worker and return a promise
    */
-  private async sendMessage(action: string, data: any): Promise<any> {
+  private async sendMessage(action: string, data: Record<string, unknown>): Promise<QuantizationResult> {
     await this.initPromise;
 
     return new Promise((resolve, reject) => {
       const id = ++this.operationCounter;
 
-      this.pendingOperations.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (this.pendingOperations.has(id)) {
+          this.pendingOperations.delete(id);
+          reject(new Error("Operation timeout"));
+        }
+      }, this.operationTimeout);
+
+      this.pendingOperations.set(id, { resolve, reject, timer });
 
       this.worker?.postMessage({
         id,
         action,
         data,
       });
-
-      // Set a timeout for the operation
-      setTimeout(() => {
-        if (this.pendingOperations.has(id)) {
-          this.pendingOperations.delete(id);
-          reject(new Error("Operation timeout"));
-        }
-      }, this.operationTimeout);
     });
   }
 
@@ -201,12 +208,21 @@ export default class LibImageQuant {
    * Terminate the worker and clean up resources
    */
   dispose() {
+    // Reject all pending operations
+    for (const [, operation] of this.pendingOperations) {
+      clearTimeout(operation.timer);
+      operation.reject(new Error("LibImageQuant disposed"));
+    }
+    this.pendingOperations.clear();
+
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
     }
 
     this.isReady = false;
-    this.pendingOperations.clear();
+
+    // Suppress unhandled rejection from init promise if still pending
+    this.initPromise.catch(() => {});
   }
 }

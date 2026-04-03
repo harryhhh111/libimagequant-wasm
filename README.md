@@ -4,14 +4,13 @@ A TypeScript/JavaScript WebAssembly wrapper for the [libimagequant](https://gith
 
 ## Features
 
-- **🎨 High-quality image quantization** - Convert 24/32-bit images to 8-bit palette with alpha channel
-- **⚡ Web Worker support** - Non-blocking image processing using Web Workers
-- **📦 TypeScript support** - Full TypeScript definitions included
-- **🔄 Promise-based API** - Modern, easy-to-use async interface
-- **🧵 Threading support** - Utilizes libimagequant's multi-threading capabilities
-- **🚀 Optimized WASM** - Size and performance optimized WebAssembly build
-- **🌐 Browser compatible** - Works in all modern browsers supporting WebAssembly
-- **📱 Multiple formats** - Supports ESM and CommonJS
+- **High-quality image quantization** - Convert 24/32-bit images to 8-bit palette with alpha channel
+- **Web Worker support** - Non-blocking image processing using Web Workers
+- **TypeScript support** - Full TypeScript definitions included
+- **Promise-based API** - Modern, easy-to-use async interface
+- **Optimized WASM** - Size and performance optimized WebAssembly build
+- **Browser compatible** - Works in all modern browsers supporting WebAssembly
+- **Multiple formats** - Supports ESM and CommonJS
 
 ## Installation
 
@@ -21,189 +20,216 @@ npm install libimagequant-wasm
 
 ### Requirements
 
-- Node.js >= 16.0.0
+- Node.js >= 20.19.0
 - Modern browser with WebAssembly and Web Worker support
-
-## Build from Source
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Install Rust and wasm-pack:
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-rustup target add wasm32-unknown-unknown
-```
-
-3. Build the project:
-```bash
-npm run build
-```
-
-This will:
-- Build the WASM module with wasm-pack
-- Compile TypeScript to ESM and CommonJS
-- Generate TypeScript declarations
-- Optimize the output
 
 ## Quick Start
 
-### Basic Usage
+### Quantize a PNG
 
 ```typescript
-import LibImageQuant, { QuantizationOptions } from 'libimagequant-wasm';
-
-// Create quantizer instance
-const quantizer = new LibImageQuant();
-
-// Quantize an image from canvas
-const canvas = document.getElementById('myCanvas') as HTMLCanvasElement;
-const options: QuantizationOptions = {
-    maxColors: 64,
-    quality: { min: 70, target: 100 },
-    speed: 3
-};
-
-const result = await quantizer.quantizeCanvas(canvas, options);
-
-console.log(`Quantized to ${result.paletteLength} colors`);
-console.log(`Quality: ${Math.round(result.quality * 100)}%`);
-
-// Apply result to another canvas
-const outputCanvas = document.getElementById('outputCanvas') as HTMLCanvasElement;
-quantizer.applyToCanvas(outputCanvas, result);
-
-// Clean up
-quantizer.dispose();
-```
-
-### Convenience Functions
-
-```javascript
-import { quantizeCanvas, quantizeImage } from 'libimagequant-wasm';
-
-// One-shot quantization (automatically handles worker lifecycle)
-const result = await quantizeCanvas(canvas, { maxColors: 128 });
-
-// Quantize from image element
-const img = document.getElementById('myImage');
-const result = await quantizeImage(img, { 
-    maxColors: 64,
-    dithering: 0.8 
-});
-```
-
-### Working with ImageData
-
-```javascript
 import LibImageQuant from 'libimagequant-wasm';
 
 const quantizer = new LibImageQuant();
 
-// Get ImageData from canvas
-const ctx = canvas.getContext('2d');
-const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+// Fetch a PNG and quantize it
+const response = await fetch('image.png');
+const pngData = new Uint8Array(await response.arrayBuffer());
 
-// Quantize
-const result = await quantizer.quantizeImageData(imageData, {
-    maxColors: 32,
-    speed: 1, // Slower but higher quality
-    quality: { min: 80, target: 100 }
+const result = await quantizer.quantizePng(pngData, {
+  maxColors: 64,
+  quality: { min: 0, target: 100 },
+  speed: 3,
 });
 
-// Convert back to ImageData
-const quantizedImageData = quantizer.toImageData(result);
-ctx.putImageData(quantizedImageData, 0, 0);
+console.log(`Quantized to ${result.paletteLength} colors`);
+console.log(`Quality: ${Math.round(result.quality * 100)}%`);
+
+// result.pngBytes - quantized indexed PNG as Uint8Array
+// result.imageData - quantized image as ImageData (for canvas rendering)
 
 quantizer.dispose();
 ```
 
-## API Reference
+### Quantize from Canvas
 
-### LibImageQuant Class
+```typescript
+import LibImageQuant from 'libimagequant-wasm';
 
-#### Constructor
-```javascript
-const quantizer = new LibImageQuant(options)
+const quantizer = new LibImageQuant();
+
+const canvas = document.getElementById('myCanvas') as HTMLCanvasElement;
+const ctx = canvas.getContext('2d')!;
+const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+const result = await quantizer.quantizeImageData(imageData, {
+  maxColors: 32,
+  speed: 1,
+  dithering: 0.8,
+});
+
+// Draw quantized result back to canvas
+ctx.putImageData(result.imageData, 0, 0);
+
+quantizer.dispose();
 ```
 
-Options:
-- `workerUrl` (string): Custom path to worker.js file
+### Input Formats
+
+`quantizePng` accepts multiple input types:
+
+```typescript
+// Uint8Array
+const result = await quantizer.quantizePng(pngBytes);
+
+// ArrayBuffer
+const result = await quantizer.quantizePng(arrayBuffer);
+
+// Blob
+const result = await quantizer.quantizePng(blob);
+```
+
+## API Reference
+
+### LibImageQuant
+
+#### Constructor
+
+```typescript
+const quantizer = new LibImageQuant(options?: LibImageQuantOptions);
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `workerUrl` | `string` | auto-detected | Custom path to the worker module |
+| `wasmUrl` | `string` | auto-detected | Custom path to the WASM module directory |
+| `initTimeout` | `number` | `10000` | Worker initialization timeout (ms) |
+| `operationTimeout` | `number` | `30000` | Per-operation timeout (ms) |
 
 #### Methods
 
-**quantizeCanvas(canvas, options)**
-- Quantizes image from HTMLCanvasElement
-- Returns: Promise<QuantizationResult>
+##### `quantizePng(pngData, options?)`
 
-**quantizeImage(image, options)**
-- Quantizes image from HTMLImageElement
-- Returns: Promise<QuantizationResult>
+Quantizes a PNG image from binary data.
 
-**quantizeImageData(imageData, options)**
-- Quantizes ImageData object
-- Returns: Promise<QuantizationResult>
+- `pngData`: `Uint8Array | ArrayBuffer | Blob` - PNG file bytes
+- `options`: `QuantizationOptions` (optional)
+- Returns: `Promise<QuantizationResult>`
 
-**applyToCanvas(canvas, result)**
-- Applies quantization result to canvas
+##### `quantizeImageData(imageData, options?)`
 
-**toImageData(result)**
-- Converts result to ImageData object
+Quantizes an `ImageData` object (e.g. from canvas).
 
-**dispose()**
-- Terminates worker and cleans up resources
+- `imageData`: `ImageData` - RGBA image data
+- `options`: `QuantizationOptions` (optional)
+- Returns: `Promise<QuantizationResult>`
 
-### Quantization Options
+##### `dispose()`
 
-```javascript
-const options = {
-    maxColors: 256,        // Maximum colors in palette (2-256)
-    speed: 3,              // Speed vs quality (1-10, lower = better quality)
-    quality: {             // Quality settings
-        min: 0,            // Minimum quality (0-100)
-        target: 100        // Target quality (0-100)
-    },
-    dithering: 1.0,        // Dithering level (0.0-1.0)
-    posterization: 0       // Posterization level (0-4)
-};
+Terminates the worker, rejects any pending operations, and releases resources. Safe to call multiple times.
+
+### QuantizationOptions
+
+```typescript
+{
+  speed?: number;          // Speed vs quality (1-10, lower = better quality)
+  quality?: {
+    min: number;           // Minimum acceptable quality (0-100)
+    target: number;        // Target quality (0-100)
+  };
+  maxColors?: number;      // Maximum colors in palette (2-256)
+  dithering?: number;      // Dithering level (0.0-1.0)
+  posterization?: number;  // Posterization level (0-4)
+}
 ```
 
 ### QuantizationResult
 
-```javascript
+```typescript
 {
-    palette: [[r, g, b, a], ...],  // Color palette array
-    indexedData: [index, ...],      // Palette indices for each pixel
-    imageData: [r, g, b, a, ...],   // RGBA data (if returnRgba !== false)
-    quality: 0.95,                  // Achieved quality (0-1)
-    paletteLength: 64,              // Number of colors in palette
-    width: 400,                     // Image width
-    height: 300                     // Image height
+  palette: number[][];     // Color palette as [[r,g,b,a], ...]
+  pngBytes: Uint8Array;    // Quantized indexed PNG file bytes
+  imageData: ImageData;    // Quantized RGBA image data (for canvas)
+  quality: number;         // Achieved quality (0.0-1.0)
+  paletteLength: number;   // Number of colors in palette
+  width: number;           // Image width in pixels
+  height: number;          // Image height in pixels
 }
 ```
 
+## Build from Source
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) with the `wasm32-unknown-unknown` target
+- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
+- Node.js >= 20.19.0
+- [wasm-opt](https://github.com/WebAssembly/binaryen) (optional, for WASM size optimization)
+
+### Setup
+
+```bash
+# Install Rust and wasm-pack
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+rustup target add wasm32-unknown-unknown
+
+# Install dependencies
+npm install
+
+# Build
+npm run build
+```
+
+### Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Full build (WASM + TypeScript + types) |
+| `npm run build:wasm` | Build WASM module only |
+| `npm run build:types` | Generate TypeScript declarations only |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm test` | Run tests (vitest + browser) |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run dev` | Start Vite dev server |
+| `npm run clean` | Remove build output |
+
+## Testing
+
+Tests run in a real browser via [Vitest](https://vitest.dev/) with `@vitest/browser` and Playwright. No mocks — the actual WASM module is loaded and executed.
+
+```bash
+# Build first (tests run against built output)
+npm run build
+
+# Run tests (headless Chromium)
+npm test
+```
+
+The test suite covers:
+- **High-level API** - `LibImageQuant` class, all input formats, options, disposal, concurrency, error handling
+- **Low-level WASM** - `ImageQuantizer`, `QuantizationResult`, PNG encode/decode, memory management
+- **Result validation** - Color accuracy, PNG integrity, transparency roundtrips
+
 ## Browser Support
+
+Requires WebAssembly and Web Worker support:
 
 - Chrome 57+
 - Firefox 52+
 - Safari 11+
 - Edge 16+
 
-Requires WebAssembly and Web Worker support.
-
 ## Performance Tips
 
 1. **Reuse quantizer instances** when processing multiple images
 2. **Use appropriate speed settings** - higher speed for real-time, lower for final output
-3. **Batch process** similar images with the same settings
-4. **Consider image size** - quantization time scales with pixel count
+3. **Consider image size** - quantization time scales with pixel count
+4. **Call `dispose()`** when done to release the Web Worker
 
 ## Examples
 
-See `test.html` for a complete working example with:
+See `examples/test.html` for a complete working example with:
 - File upload
 - Real-time parameter adjustment
 - Visual comparison
@@ -220,28 +246,22 @@ MIT License - See LICENSE file for details.
 
 1. Fork the repository
 2. Create your feature branch
-3. Test your changes with `npm test`
-4. Submit a pull request
+3. Build: `npm run build`
+4. Test: `npm test`
+5. Submit a pull request
 
 ## Troubleshooting
 
 ### Worker Loading Issues
-Ensure `worker.js` is served from the same origin or configure CORS headers.
+Ensure the worker module is served from the same origin, or pass a custom `workerUrl` to the constructor.
 
 ### WASM Loading Issues
 - Verify WebAssembly support: `typeof WebAssembly === 'object'`
 - Check browser console for loading errors
-- Ensure proper MIME type for .wasm files
+- Ensure proper MIME type for `.wasm` files (`application/wasm`)
+- Pass a custom `wasmUrl` if the WASM files are hosted separately
 
 ### Performance Issues
 - Large images may take significant time to quantize
 - Consider resizing images before quantization
-- Use higher speed settings for real-time applications
-
-## Changelog
-
-### 0.1.0
-- Initial release
-- Basic quantization functionality
-- Web Worker support
-- Promise-based API
+- Use higher `speed` settings for real-time applications

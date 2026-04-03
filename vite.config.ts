@@ -7,11 +7,14 @@ const execAsync = promisify(exec)
 
 // Plugin to build WASM
 const wasmPlugin = () => {
+  let hasBuiltWasm = false;
   let hasProcessed = false;
-  
+
   return {
     name: 'wasm-build',
     buildStart: async () => {
+      if (hasBuiltWasm) return;
+      hasBuiltWasm = true;
       console.log('Building WASM module...')
       try {
         // Build WASM to temporary directory first
@@ -27,19 +30,19 @@ const wasmPlugin = () => {
       // Only process once (this hook is called for each format)
       if (hasProcessed) return;
       hasProcessed = true;
-      
+
       try {
         // Create dist/wasm directory
         await execAsync('mkdir -p dist/wasm')
-        
+
         // Copy only the WASM-specific files (not LICENSE, README.md, package.json)
         const filesToCopy = [
           'libimagequant_wasm.js',
-          'libimagequant_wasm_bg.wasm', 
+          'libimagequant_wasm_bg.wasm',
           'libimagequant_wasm.d.ts',
           'libimagequant_wasm_bg.wasm.d.ts'
         ]
-        
+
         for (const file of filesToCopy) {
           try {
             await execAsync(`cp pkg/${file} dist/wasm/`)
@@ -47,10 +50,10 @@ const wasmPlugin = () => {
             console.warn(`Warning: Could not copy ${file}:`, err)
           }
         }
-        
+
         // Clean up temporary directory
         await execAsync('rm -rf pkg')
-        
+
         console.log('WASM files copied to dist/wasm')
       } catch (error) {
         console.error('WASM copy failed:', error)
@@ -65,14 +68,14 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        index: resolve(__dirname, 'src/index.ts'),
-        worker: resolve(__dirname, 'src/worker.ts'),
+        index: resolve(import.meta.dirname, 'src/index.ts'),
+        worker: resolve(import.meta.dirname, 'src/worker.ts'),
       },
       name: 'LibImageQuant',
       formats: ['es', 'cjs'],
       fileName: (format, entryName) => `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: ['fs', 'path', 'url'],
       output: {
         preserveModules: false,
@@ -83,13 +86,13 @@ export default defineConfig({
         }
       }
     },
-    target: 'es2020',
-    minify: 'terser',
+    target: 'es2025',
+    minify: true,
     sourcemap: true
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(import.meta.dirname, 'src')
     }
   },
   server: {

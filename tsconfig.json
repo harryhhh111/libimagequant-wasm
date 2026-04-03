@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
+    "target": "esnext",
+    "lib": ["esnext", "DOM", "WebWorker"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -13,21 +13,16 @@
     "declarationMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    
-    "strict": true,
+
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    
+
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    
-    "baseUrl": ".",
+
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

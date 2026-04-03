@@ -228,18 +228,16 @@
                 quantizer = new LibImageQuant({
                     workerUrl: '../dist/worker.mjs'
                 });
-                // Wait for initialization
-                await new Promise((resolve, reject) => {
-                    setTimeout(async () => {
-                        try {
-                            // Test if ready by calling a simple method
-                            await quantizer.initPromise;
-                            resolve();
-                        } catch (e) {
-                            reject(e);
-                        }
-                    }, 100);
-                });
+                // Verify the worker is ready by running a tiny quantization
+                const canvas = document.createElement('canvas');
+                canvas.width = 1;
+                canvas.height = 1;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(0, 0, 1, 1);
+                const testBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const testBytes = new Uint8Array(await testBlob.arrayBuffer());
+                await quantizer.quantizePng(testBytes);
                 showMessage('WASM module initialized successfully!', 'success');
                 return true;
             } catch (error) {

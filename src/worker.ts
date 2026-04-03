@@ -125,67 +125,85 @@ async function quantizeRgbaData(
   rgbaData: Uint8ClampedArray,
   width: number,
   height: number,
-  options: any
+  options: QuantizationOptions
 ) {
   // Create quantizer instance
   const quantizer = new wasmModule.ImageQuantizer();
 
-  // Apply options
-  if (options.speed !== undefined) {
-    quantizer.setSpeed(options.speed);
+  try {
+    // Apply options
+    if (options.speed !== undefined) {
+      quantizer.setSpeed(options.speed);
+    }
+
+    if (options.quality !== undefined) {
+      const { min = 0, target = 100 } = options.quality;
+      quantizer.setQuality(min, target);
+    }
+
+    if (options.maxColors !== undefined) {
+      quantizer.setMaxColors(options.maxColors);
+    }
+
+    if (options.posterization !== undefined) {
+      quantizer.setPosterization(options.posterization);
+    }
+
+    // Quantize the image
+    const quantResult = quantizer.quantizeImage(rgbaData, width, height);
+
+    try {
+      // Extract results
+      const palette = quantResult.getPalette();
+      const quality = quantResult.getQuantizationQuality();
+      const paletteLength = quantResult.getPaletteLength();
+
+      // Set dithering if specified
+      if (options.dithering !== undefined) {
+        quantResult.setDithering(options.dithering);
+      }
+
+      // Get palette indices (single remap operation)
+      const paletteIndices = quantResult.getPaletteIndices(rgbaData, width, height);
+
+      // Reconstruct RGBA data from palette + indices (avoids a second remap)
+      const pixelCount = width * height;
+      const remappedData = new Uint8ClampedArray(pixelCount * 4);
+      for (let i = 0; i < pixelCount; i++) {
+        const color = palette[paletteIndices[i]];
+        const offset = i * 4;
+        remappedData[offset] = color[0];
+        remappedData[offset + 1] = color[1];
+        remappedData[offset + 2] = color[2];
+        remappedData[offset + 3] = color[3];
+      }
+
+      // Generate indexed PNG
+      const pngBytes = wasmModule.encode_palette_to_png(
+        paletteIndices,
+        palette,
+        width,
+        height
+      );
+
+      // Generate ImageData
+      const imageData = new ImageData(remappedData, width, height);
+
+      return {
+        palette,
+        pngBytes,
+        imageData,
+        quality,
+        paletteLength,
+        width,
+        height,
+      };
+    } finally {
+      quantResult.free();
+    }
+  } finally {
+    quantizer.free();
   }
-
-  if (options.quality !== undefined) {
-    const { min = 0, target = 100 } = options.quality;
-    quantizer.setQuality(min, target);
-  }
-
-  if (options.maxColors !== undefined) {
-    quantizer.setMaxColors(options.maxColors);
-  }
-
-  if (options.posterization !== undefined) {
-    quantizer.setPosterization(options.posterization);
-  }
-
-  // Quantize the image
-  const quantResult = quantizer.quantizeImage(rgbaData, width, height);
-
-  // Extract results
-  const palette = quantResult.getPalette();
-  const quality = quantResult.getQuantizationQuality();
-  const paletteLength = quantResult.getPaletteLength();
-
-  // Set dithering if specified
-  if (options.dithering !== undefined) {
-    quantResult.setDithering(options.dithering);
-  }
-
-  const remappedRgbaData = quantResult.remapImage(rgbaData, width, height);
-
-  // Get palette indices directly from Rust
-  const paletteIndices = quantResult.getPaletteIndices(rgbaData, width, height);
-
-  // Generate indexed PNG
-  const pngBytes = wasmModule.encode_palette_to_png(
-    paletteIndices,
-    palette,
-    width,
-    height
-  );
-
-  // Generate ImageData
-  const imageData = new ImageData(remappedRgbaData, width, height);
-
-  return {
-    palette,
-    pngBytes,
-    imageData,
-    quality,
-    paletteLength,
-    width,
-    height,
-  };
 }
 
 // Send ready message when worker is loaded

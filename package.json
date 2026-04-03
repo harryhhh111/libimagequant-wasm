@@ -8,22 +8,24 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "default": "./dist/index.mjs"
     },
     "./worker": {
+      "types": "./dist/worker.d.ts",
       "import": "./dist/worker.mjs",
       "require": "./dist/worker.cjs",
-      "types": "./dist/worker.d.ts"
+      "default": "./dist/worker.mjs"
     },
     "./wasm/libimagequant_wasm.js": {
-      "import": "./dist/wasm/libimagequant_wasm.js",
-      "require": "./dist/wasm/libimagequant_wasm.js",
-      "types": "./dist/wasm/libimagequant_wasm.d.ts"
+      "types": "./dist/wasm/libimagequant_wasm.d.ts",
+      "default": "./dist/wasm/libimagequant_wasm.js"
     },
     "./wasm/libimagequant_wasm_bg.wasm": "./dist/wasm/libimagequant_wasm_bg.wasm"
   },
+  "sideEffects": false,
   "files": [
     "dist/",
     "README.md",
@@ -33,11 +35,13 @@
     "dev": "vite",
     "build": "npm run clean && vite build && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
-    "build:wasm": "PATH=/Users/akshet/.cargo/bin:$PATH wasm-pack build --target web --out-dir dist/wasm",
+    "build:wasm": "wasm-pack build --target web --out-dir dist/wasm",
     "clean": "rm -rf dist/ target/",
-    "preview": "vite preview",
+    "preview": "vite dev",
     "serve": "vite dev --port 8080",
-    "test": "npm run build && npm run serve",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:manual": "npm run build && npm run serve",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit"
   },
@@ -57,22 +61,24 @@
   "author": "Akshet Pandey <argetlam.akshet@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0",
-    "terser": "^5.0.0"
+    "@types/node": "^22.0.0",
+    "@vitest/browser": "^4.1.2",
+    "@vitest/browser-playwright": "^4.1.2",
+    "playwright": "^1.59.1",
+    "typescript": "^6.0.0",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.2"
   },
-  "dependencies": {},
   "repository": {
     "type": "git",
-    "url": "https://github.com/akshetpandey/libimagequant-wasm.git"
+    "url": "git+https://github.com/akshetpandey/libimagequant-wasm.git"
   },
   "bugs": {
     "url": "https://github.com/akshetpandey/libimagequant-wasm/issues"
   },
   "homepage": "https://github.com/akshetpandey/libimagequant-wasm#readme",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.19.0"
   },
   "publishConfig": {
     "access": "public"

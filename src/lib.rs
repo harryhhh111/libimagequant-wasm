@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Uint8Array, Uint8ClampedArray};
 use imagequant::{Attributes, Image, RGBA};
-use png::{Decoder, Encoder, ColorType, BitDepth, Transformations, Compression};
+use png::{Decoder, Encoder, ColorType, BitDepth, Transformations, DeflateCompression, Filter};
 use std::io::Cursor;
 
 // Initialize panic hook for better error messages in development
@@ -298,16 +298,15 @@ pub fn encode_palette_to_png(palette_indices: &Uint8Array, palette: &Array, widt
         encoder.set_color(ColorType::Indexed);
         encoder.set_depth(BitDepth::Eight);
 
-        // Set zlib compression level (default: 9 / High = best compression)
+        // Set zlib compression level (default: 9 = best compression via flate2)
         let level = compression_level.unwrap_or(9);
-        let compression = match level {
-            0 => Compression::NoCompression,
-            1..=2 => Compression::Fastest,
-            3..=5 => Compression::Fast,
-            6..=7 => Compression::Balanced,
-            _ => Compression::High,
+        let compression = if level == 0 {
+            DeflateCompression::NoCompression
+        } else {
+            DeflateCompression::Level(level.clamp(1, 9))
         };
-        encoder.set_compression(compression);
+        encoder.set_deflate_compression(compression);
+        encoder.set_filter(Filter::NoFilter);
 
         // Set up palette and tRNS chunk
         let mut palette_rgb = Vec::new();

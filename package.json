@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "npm run clean && vite build && npm run build:types",
+    "build": "pnpm run clean && vite build && pnpm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist",
     "build:wasm": "wasm-pack build --target web --out-dir dist/wasm",
     "clean": "rm -rf dist/ target/",
@@ -41,8 +41,8 @@
     "serve": "vite dev --port 8080",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:manual": "npm run build && npm run serve",
-    "prepublishOnly": "npm run build",
+    "test:manual": "pnpm run build && pnpm run serve",
+    "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

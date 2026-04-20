@@ -216,6 +216,7 @@ export default class LibImageQuant {
     this.pendingOperations.clear();
 
     if (this.worker) {
+      this.worker.onerror = null;
       this.worker.terminate();
       this.worker = null;
     }

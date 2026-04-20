@@ -299,6 +299,73 @@ describe('encode_palette_to_png', () => {
     // width*height = 4, but only 2 indices
     expect(() => encode_palette_to_png(indices, palette, 2, 2)).toThrow();
   });
+
+  it('accepts optional compression_level parameter', () => {
+    const width = 4;
+    const height = 4;
+    const indices = new Uint8Array(width * height).fill(0);
+    const palette = [[255, 0, 0, 255]];
+
+    const pngBytes = encode_palette_to_png(indices, palette, width, height, 9);
+    expect(pngBytes).toBeInstanceOf(Uint8Array);
+    expect(hasValidPngSignature(pngBytes)).toBe(true);
+  });
+
+  it('compression_level 0 produces valid PNG', () => {
+    const width = 4;
+    const height = 4;
+    const indices = new Uint8Array(width * height).fill(0);
+    const palette = [[255, 0, 0, 255]];
+
+    const pngBytes = encode_palette_to_png(indices, palette, width, height, 0);
+    expect(hasValidPngSignature(pngBytes)).toBe(true);
+  });
+
+  it('compression_level does not affect decoded pixel data', () => {
+    const width = 10;
+    const height = 10;
+    const indices = new Uint8Array(width * height).fill(0);
+    indices.fill(1, 0, 25);
+    indices.fill(2, 25, 50);
+    const palette = [
+      [255, 0, 0, 255],
+      [0, 255, 0, 255],
+      [0, 0, 255, 255],
+    ];
+
+    const png0 = encode_palette_to_png(indices, palette, width, height, 0);
+    const png9 = encode_palette_to_png(indices, palette, width, height, 9);
+
+    const [decoded0] = decode_png_to_rgba(png0);
+    const [decoded9] = decode_png_to_rgba(png9);
+
+    expect(decoded0.length).toBe(decoded9.length);
+    for (let i = 0; i < decoded0.length; i++) {
+      expect(decoded0[i]).toBe(decoded9[i]);
+    }
+  });
+
+  it('higher compression produces smaller or equal file for non-trivial images', () => {
+    // Use a larger image with varied indices to ensure compression matters
+    const width = 50;
+    const height = 50;
+    const indices = new Uint8Array(width * height);
+    for (let i = 0; i < indices.length; i++) {
+      indices[i] = (i * 7) % 16; // varied pattern
+    }
+    const palette: number[][] = [];
+    for (let i = 0; i < 16; i++) {
+      palette.push([i * 16, i * 16, i * 16, 255]);
+    }
+
+    const png0 = encode_palette_to_png(indices, palette, width, height, 0);
+    const png9 = encode_palette_to_png(indices, palette, width, height, 9);
+
+    expect(hasValidPngSignature(png0)).toBe(true);
+    expect(hasValidPngSignature(png9)).toBe(true);
+    // Level 9 should be smaller or equal than level 0 for varied data
+    expect(png9.length).toBeLessThanOrEqual(png0.length);
+  });
 });
 
 describe('PNG encode/decode roundtrip', () => {

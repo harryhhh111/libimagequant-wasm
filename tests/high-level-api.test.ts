@@ -319,7 +319,7 @@ describe('LibImageQuant - QuantizationOptions', () => {
 
 describe('LibImageQuant - dispose', () => {
   it('dispose during init rejects subsequent operations', async () => {
-    const instance = createInstance();
+    const instance = createInstance({ initTimeout: 100 });
     // Immediately dispose before init completes
     instance.dispose();
 
@@ -334,7 +334,7 @@ describe('LibImageQuant - dispose', () => {
   });
 
   it('operations after dispose reject', async () => {
-    const instance = createInstance();
+    const instance = createInstance({ initTimeout: 100 });
     instance.dispose();
 
     const png = await createTestPng(4, 4, 'solid-red');

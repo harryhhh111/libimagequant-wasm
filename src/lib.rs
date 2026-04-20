@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Uint8Array, Uint8ClampedArray};
 use imagequant::{Attributes, Image, RGBA};
-use png::{Decoder, Encoder, ColorType, BitDepth, Transformations};
+use png::{Decoder, Encoder, ColorType, BitDepth, Transformations, Compression};
 use std::io::Cursor;
 
 // Initialize panic hook for better error messages in development
@@ -261,14 +261,14 @@ pub fn decode_png_to_rgba(png_bytes: &Uint8Array) -> Result<Array, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn encode_palette_to_png(palette_indices: &Uint8Array, palette: &Array, width: u32, height: u32) -> Result<Uint8Array, JsValue> {
+pub fn encode_palette_to_png(palette_indices: &Uint8Array, palette: &Array, width: u32, height: u32, compression_level: Option<u8>) -> Result<Uint8Array, JsValue> {
     let indices: Vec<u8> = palette_indices.to_vec();
     let pixel_count = (width as usize) * (height as usize);
 
     if indices.len() != pixel_count {
         return Err(JsValue::from_str("Palette indices length doesn't match width * height"));
     }
-    
+
     // Convert JS palette to Vec<RGBA>
     let mut palette_colors = Vec::new();
     for i in 0..palette.length() {
@@ -287,17 +287,28 @@ pub fn encode_palette_to_png(palette_indices: &Uint8Array, palette: &Array, widt
             return Err(JsValue::from_str("Invalid palette format"));
         }
     }
-    
+
     if palette_colors.len() > 256 {
         return Err(JsValue::from_str("Palette too large for PNG (max 256 colors)"));
     }
-    
+
     let mut png_data = Vec::new();
     {
         let mut encoder = Encoder::new(Cursor::new(&mut png_data), width, height);
         encoder.set_color(ColorType::Indexed);
         encoder.set_depth(BitDepth::Eight);
-        
+
+        // Set zlib compression level (default: 9 / High = best compression)
+        let level = compression_level.unwrap_or(9);
+        let compression = match level {
+            0 => Compression::NoCompression,
+            1..=2 => Compression::Fastest,
+            3..=5 => Compression::Fast,
+            6..=7 => Compression::Balanced,
+            _ => Compression::High,
+        };
+        encoder.set_compression(compression);
+
         // Set up palette and tRNS chunk
         let mut palette_rgb = Vec::new();
         let mut all_alpha = Vec::new();

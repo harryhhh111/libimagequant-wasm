@@ -4,9 +4,9 @@ A TypeScript/JavaScript WebAssembly wrapper for the [libimagequant](https://gith
 
 ## Features
 
-- **High-quality image quantization** - Convert 24/32-bit images to 8-bit palette with alpha channel
+- **High-quality image quantization** - Convert 24/32-bit images to an indexed palette PNG with alpha channel
+- **Dynamic bit depth** - Automatically uses 1/2/4/8-bit indexed PNG based on actual palette size for smaller files
 - **Web Worker support** - Non-blocking image processing using Web Workers
-- **TypeScript support** - Full TypeScript definitions included
 - **Promise-based API** - Modern, easy-to-use async interface
 - **Optimized WASM** - Size and performance optimized WebAssembly build
 - **Browser compatible** - Works in all modern browsers supporting WebAssembly
@@ -15,7 +15,7 @@ A TypeScript/JavaScript WebAssembly wrapper for the [libimagequant](https://gith
 ## Installation
 
 ```bash
-npm install libimagequant-wasm
+pnpm install libimagequant-wasm
 ```
 
 ### Requirements
@@ -157,6 +157,21 @@ Terminates the worker, rejects any pending operations, and releases resources. S
 }
 ```
 
+## Output Format
+
+The generated PNG is an indexed color image. The encoder automatically selects
+the smallest bit depth that can represent the actual palette:
+
+| Actual palette size | PNG bit depth | Indices per byte |
+|---------------------|---------------|------------------|
+| 1–2 colors          | 1-bit         | 8                |
+| 3–4 colors          | 2-bit         | 4                |
+| 5–16 colors         | 4-bit         | 2                |
+| 17–256 colors       | 8-bit         | 1                |
+
+This keeps files smaller than a fixed 8-bit indexed PNG when fewer colors are
+used, without changing the quantization behavior or image quality.
+
 ## Build from Source
 
 ### Prerequisites
@@ -175,24 +190,24 @@ curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 rustup target add wasm32-unknown-unknown
 
 # Install dependencies
-npm install
+pnpm install
 
 # Build
-npm run build
+pnpm run build
 ```
 
 ### Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm run build` | Full build (WASM + TypeScript + types) |
-| `npm run build:wasm` | Build WASM module only |
-| `npm run build:types` | Generate TypeScript declarations only |
-| `npm run typecheck` | Run TypeScript type checking |
-| `npm test` | Run tests (vitest + browser) |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run dev` | Start Vite dev server |
-| `npm run clean` | Remove build output |
+| `pnpm run build` | Full build (WASM + TypeScript + types) |
+| `pnpm run build:wasm` | Build WASM module only |
+| `pnpm run build:types` | Generate TypeScript declarations only |
+| `pnpm run typecheck` | Run TypeScript type checking |
+| `pnpm test` | Run tests (vitest + browser) |
+| `pnpm run test:watch` | Run tests in watch mode |
+| `pnpm run dev` | Start Vite dev server |
+| `pnpm run clean` | Remove build output |
 
 ## Testing
 
@@ -200,10 +215,10 @@ Tests run in a real browser via [Vitest](https://vitest.dev/) with `@vitest/brow
 
 ```bash
 # Build first (tests run against built output)
-npm run build
+pnpm run build
 
 # Run tests (headless Chromium)
-npm test
+pnpm test
 ```
 
 The test suite covers:
@@ -246,8 +261,8 @@ MIT License - See LICENSE file for details.
 
 1. Fork the repository
 2. Create your feature branch
-3. Build: `npm run build`
-4. Test: `npm test`
+3. Build: `pnpm run build`
+4. Test: `pnpm test`
 5. Submit a pull request
 
 ## Troubleshooting

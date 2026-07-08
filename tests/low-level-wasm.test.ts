@@ -10,6 +10,7 @@ import {
   createTestImageData,
   createTestPng,
   hasValidPngSignature,
+  parsePngBitDepth,
 } from './helpers';
 
 beforeAll(async () => {
@@ -365,6 +366,92 @@ describe('encode_palette_to_png', () => {
     expect(hasValidPngSignature(png9)).toBe(true);
     // Level 9 should be smaller or equal than level 0 for varied data
     expect(png9.length).toBeLessThanOrEqual(png0.length);
+  });
+
+  it('selects 1-bit depth for palettes with 1-2 colors', () => {
+    const indices = new Uint8Array([0, 1, 0, 1]);
+    const palette = [[255, 0, 0, 255], [0, 255, 0, 255]];
+    const png = encode_palette_to_png(indices, palette, 2, 2);
+    expect(parsePngBitDepth(png)).toBe(1);
+  });
+
+  it('selects 2-bit depth for palettes with 3-4 colors', () => {
+    const indices = new Uint8Array([0, 1, 2, 3]);
+    const palette = [
+      [255, 0, 0, 255],
+      [0, 255, 0, 255],
+      [0, 0, 255, 255],
+      [255, 255, 255, 255],
+    ];
+    const png = encode_palette_to_png(indices, palette, 2, 2);
+    expect(parsePngBitDepth(png)).toBe(2);
+  });
+
+  it('selects 4-bit depth for palettes with 5-16 colors', () => {
+    const palette: number[][] = [];
+    for (let i = 0; i < 16; i++) {
+      palette.push([i * 17, i * 17, i * 17, 255]);
+    }
+    const indices = new Uint8Array(16).fill(0);
+    indices.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    const png = encode_palette_to_png(indices, palette, 4, 4);
+    expect(parsePngBitDepth(png)).toBe(4);
+  });
+
+  it('selects 8-bit depth for palettes with 17-256 colors', () => {
+    const palette: number[][] = [];
+    for (let i = 0; i < 17; i++) {
+      palette.push([i, i, i, 255]);
+    }
+    const indices = new Uint8Array(16).fill(0);
+    indices[15] = 16;
+    const png = encode_palette_to_png(indices, palette, 4, 4);
+    expect(parsePngBitDepth(png)).toBe(8);
+  });
+
+  it('roundtrips odd-width images with 1-bit palette', () => {
+    const width = 3;
+    const height = 3;
+    const indices = new Uint8Array([0, 1, 0, 1, 0, 1, 0, 1, 0]);
+    const palette = [
+      [255, 0, 0, 255],
+      [0, 255, 0, 255],
+    ];
+    const png = encode_palette_to_png(indices, palette, width, height);
+    expect(parsePngBitDepth(png)).toBe(1);
+
+    const [decoded, w, h] = decode_png_to_rgba(png);
+    expect(w).toBe(width);
+    expect(h).toBe(height);
+    expect(decoded.length).toBe(width * height * 4);
+    for (let i = 0; i < indices.length; i++) {
+      const color = palette[indices[i]];
+      expect(decoded[i * 4]).toBe(color[0]);
+      expect(decoded[i * 4 + 1]).toBe(color[1]);
+      expect(decoded[i * 4 + 2]).toBe(color[2]);
+      expect(decoded[i * 4 + 3]).toBe(color[3]);
+    }
+  });
+
+  it('roundtrips transparency with 4-bit palette', () => {
+    const width = 4;
+    const height = 4;
+    const palette: number[][] = [];
+    for (let i = 0; i < 16; i++) {
+      palette.push([i * 17, i * 17, i * 17, i === 0 ? 0 : 255]);
+    }
+    const indices = new Uint8Array(width * height).map((_, i) => i % 16);
+    const png = encode_palette_to_png(indices, palette, width, height);
+    expect(parsePngBitDepth(png)).toBe(4);
+
+    const [decoded] = decode_png_to_rgba(png);
+    for (let i = 0; i < indices.length; i++) {
+      const color = palette[indices[i]];
+      expect(decoded[i * 4]).toBe(color[0]);
+      expect(decoded[i * 4 + 1]).toBe(color[1]);
+      expect(decoded[i * 4 + 2]).toBe(color[2]);
+      expect(decoded[i * 4 + 3]).toBe(color[3]);
+    }
   });
 });
 

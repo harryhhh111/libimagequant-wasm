@@ -18,7 +18,12 @@ const wasmPlugin = () => {
       console.log('Building WASM module...')
       try {
         // Build WASM to temporary directory first
-        const { stdout, stderr } = await execAsync('PATH=/Users/akshet/.cargo/bin:$PATH wasm-pack build --target web --out-dir pkg')
+        const home = process.env.HOME || process.env.USERPROFILE
+        const cargoBin = home ? `${home}/.cargo/bin` : null
+        const env = cargoBin
+          ? { ...process.env, PATH: `${cargoBin}:${process.env.PATH || ''}` }
+          : process.env
+        const { stdout, stderr } = await execAsync('wasm-pack build --target web --out-dir pkg', { env })
         if (stderr) console.warn('WASM build warnings:', stderr)
         console.log('WASM build completed')
       } catch (error) {

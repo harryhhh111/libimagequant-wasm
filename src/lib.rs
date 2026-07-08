@@ -296,7 +296,18 @@ pub fn encode_palette_to_png(palette_indices: &Uint8Array, palette: &Array, widt
     {
         let mut encoder = Encoder::new(Cursor::new(&mut png_data), width, height);
         encoder.set_color(ColorType::Indexed);
-        encoder.set_depth(BitDepth::Eight);
+
+        // Use the smallest bit depth that can represent the palette
+        let bit_depth = if palette_colors.len() <= 2 {
+            BitDepth::One
+        } else if palette_colors.len() <= 4 {
+            BitDepth::Two
+        } else if palette_colors.len() <= 16 {
+            BitDepth::Four
+        } else {
+            BitDepth::Eight
+        };
+        encoder.set_depth(bit_depth);
 
         // Set zlib compression level (default: 9 = best compression via flate2)
         let level = compression_level.unwrap_or(9);
@@ -325,9 +336,33 @@ pub fn encode_palette_to_png(palette_indices: &Uint8Array, palette: &Array, widt
         let mut writer = encoder.write_header()
             .map_err(|e| JsValue::from_str(&format!("Failed to write PNG header: {}", e)))?;
         
-        writer.write_image_data(&indices)
+        // Pack indices according to bit depth (PNG expects packed bits for depths < 8)
+        let packed_indices = pack_indices(&indices, width as usize, height as usize, bit_depth);
+
+        writer.write_image_data(&packed_indices)
             .map_err(|e| JsValue::from_str(&format!("Failed to write PNG data: {}", e)))?;
     }
     
     Ok(Uint8Array::from(&png_data[..]))
+}
+
+/// Pack palette indices into PNG-compatible bit-packed rows.
+fn pack_indices(indices: &[u8], width: usize, height: usize, bit_depth: BitDepth) -> Vec<u8> {
+    let bits_per_pixel = bit_depth as u8 as usize;
+    let indices_per_byte = 8 / bits_per_pixel;
+    let bytes_per_row = (width * bits_per_pixel + 7) / 8;
+    let mut packed = vec![0u8; height * bytes_per_row];
+
+    for y in 0..height {
+        let row_offset = y * bytes_per_row;
+
+        for x in 0..width {
+            let index = indices[y * width + x];
+            let byte_index = row_offset + x / indices_per_byte;
+            let bit_shift = (8 - bits_per_pixel - (x % indices_per_byte) * bits_per_pixel) as u32;
+            packed[byte_index] |= index << bit_shift;
+        }
+    }
+
+    packed
 }

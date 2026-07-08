@@ -6,6 +6,9 @@
 /benchmark-output/
 /compare-output/
 
+# Local-only scripts with hardcoded paths
+/scripts/compress-pal-icon.mjs
+
 # Node modules
 node_modules/
 

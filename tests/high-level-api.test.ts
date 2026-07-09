@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import LibImageQuant from '../dist/index.mjs';
-import type { QuantizationOptions, QuantizationResult } from '../dist/index.mjs';
+import type { QuantizationResult } from '../dist/index.mjs';
 import {
   createTestPng,
   createTestImageData,
@@ -37,11 +37,11 @@ describe('LibImageQuant - Initialization', () => {
   });
 
   it('rejects with timeout on invalid workerUrl', async () => {
+    const png = await createTestPng(4, 4, 'solid-red');
     const instance = new LibImageQuant({
       workerUrl: '/nonexistent-worker.mjs',
       initTimeout: 500,
     });
-    const png = await createTestPng(4, 4, 'solid-red');
     await expect(instance.quantizePng(png)).rejects.toThrow();
     // dispose to prevent leaked rejection after timeout
     instance.dispose();

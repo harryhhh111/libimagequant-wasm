@@ -1,5 +1,5 @@
 use imagequant::{Attributes, Image, RGBA};
-use png::{BitDepth, ColorType, Compression, Encoder};
+use png::{BitDepth, ColorType, Compression, Encoder, Filter};
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
@@ -51,13 +51,44 @@ fn create_four_quadrants() -> Vec<RGBA> {
 
 fn create_transparent() -> Vec<RGBA> {
     (0..HEIGHT)
-        .flat_map(|y| {
+        .flat_map(|_y| {
             (0..WIDTH).map(move |x| {
                 let a = if x < WIDTH / 2 { 255 } else { 0 };
                 RGBA::new(255, 0, 0, a)
             })
         })
         .collect()
+}
+
+fn optimal_bit_depth(palette_len: usize) -> BitDepth {
+    if palette_len <= 2 {
+        BitDepth::One
+    } else if palette_len <= 4 {
+        BitDepth::Two
+    } else if palette_len <= 16 {
+        BitDepth::Four
+    } else {
+        BitDepth::Eight
+    }
+}
+
+fn pack_indices(indices: &[u8], width: usize, height: usize, bit_depth: BitDepth) -> Vec<u8> {
+    let bits_per_pixel = bit_depth as u8 as usize;
+    let indices_per_byte = 8 / bits_per_pixel;
+    let bytes_per_row = (width * bits_per_pixel + 7) / 8;
+    let mut packed = vec![0u8; height * bytes_per_row];
+
+    for y in 0..height {
+        let row_offset = y * bytes_per_row;
+        for x in 0..width {
+            let index = indices[y * width + x];
+            let byte_index = row_offset + x / indices_per_byte;
+            let bit_shift = (8 - bits_per_pixel - (x % indices_per_byte) * bits_per_pixel) as u32;
+            packed[byte_index] |= index << bit_shift;
+        }
+    }
+
+    packed
 }
 
 fn encode_palette_png(
@@ -71,7 +102,9 @@ fn encode_palette_png(
     {
         let mut encoder = Encoder::new(Cursor::new(&mut png_data), width, height);
         encoder.set_color(ColorType::Indexed);
-        encoder.set_depth(BitDepth::Eight);
+
+        let bit_depth = optimal_bit_depth(palette.len());
+        encoder.set_depth(bit_depth);
 
         let compression = match compression_level {
             0 => Compression::NoCompression,
@@ -81,6 +114,7 @@ fn encode_palette_png(
             _ => Compression::High,
         };
         encoder.set_compression(compression);
+        encoder.set_filter(Filter::NoFilter);
 
         let mut palette_rgb = Vec::new();
         let mut all_alpha = Vec::new();
@@ -95,7 +129,8 @@ fn encode_palette_png(
         }
 
         let mut writer = encoder.write_header().unwrap();
-        writer.write_image_data(indices).unwrap();
+        let packed = pack_indices(indices, width as usize, height as usize, bit_depth);
+        writer.write_image_data(&packed).unwrap();
     }
     png_data
 }

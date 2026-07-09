@@ -106,3 +106,13 @@ export function hasValidPngSignature(bytes: Uint8Array | number[]): boolean {
   }
   return true;
 }
+
+/**
+ * Parse the bit depth from the PNG IHDR chunk.
+ * Returns the byte value (1, 2, 4, 8, 16).
+ */
+export function parsePngBitDepth(bytes: Uint8Array): number {
+  if (bytes.length < 25) throw new Error('PNG too short');
+  // PNG signature (8) + IHDR length (4) + IHDR type (4) + width (4) + height (4) + bit depth (1)
+  return bytes[24];
+}
